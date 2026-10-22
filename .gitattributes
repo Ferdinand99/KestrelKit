@@ -1,0 +1,11 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Text sources always use LF, also in Windows checkouts
+*.swift        text eol=lf
+*.md           text eol=lf
+*.json         text eol=lf
+*.yml          text eol=lf
+*.yaml         text eol=lf
+*.xcprivacy    text eol=lf
+*.sh           text eol=lf

@@ -1,0 +1,21 @@
+# Keeps a release PR open on main (version bump in Sources/KestrelKit/Version.swift,
+# CHANGELOG.md from Conventional Commits). Merging it tags vX.Y.Z and creates the
+# GitHub release; Swift Package Manager picks up the tag.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
