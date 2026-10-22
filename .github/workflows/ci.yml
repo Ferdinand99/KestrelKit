@@ -1,0 +1,66 @@
+# Builds and tests on Linux (the core) and macOS (everything), plus a build for
+# each Apple platform's simulator. Runs for every pull request and every push to main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux (Swift 6.2)
+    runs-on: ubuntu-24.04
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
+
+  macos:
+    name: macOS
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Test
+        run: swift test
+
+  apple-platforms:
+    name: Build for ${{ matrix.platform }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - iOS Simulator
+          - tvOS Simulator
+          - watchOS Simulator
+          - visionOS Simulator
+          - macOS,variant=Mac Catalyst
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: >
+          xcodebuild build
+          -scheme KestrelKit
+          -destination 'generic/platform=${{ matrix.platform }}'
+          -skipPackagePluginValidation
+          -quiet
