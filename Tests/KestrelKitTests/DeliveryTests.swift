@@ -29,6 +29,38 @@ struct DeliveryTests {
         #expect(harness.queuedLines == 0)
     }
 
+    @Test("A 202 that reports dropped signals (or says nothing readable) still ends the batch", arguments: [
+        #"{"accepted":1,"dropped":1}"#,
+        #"{"accepted":0,"dropped":2}"#,
+        #"{"accepted":2}"#,
+        "",
+        "not json",
+    ])
+    func acceptedWithDropped(body: String) async {
+        let harness = Harness()
+        harness.server.script([.status(202, body: body)])
+        let client = harness.client()
+        client.signal("Kept")
+        client.signal("Broken")
+        await client.flush()
+        #expect(harness.queuedLines == 0)
+
+        // Nothing is resent: the next request is a new signal only.
+        client.signal("Next")
+        await client.flush()
+        #expect(harness.server.requests.map(\.types) == [["Kept", "Broken"], ["Next"]])
+    }
+
+    @Test("The dropped count is read from the 202 body when it is there")
+    func droppedCount() {
+        #expect(UploadOutcome.droppedCount(in: Data(#"{"accepted":8,"dropped":2}"#.utf8)) == 2)
+        #expect(UploadOutcome.droppedCount(in: Data(#"{"dropped":0,"accepted":3}"#.utf8)) == 0)
+        #expect(UploadOutcome.droppedCount(in: Data(#"{"accepted":8}"#.utf8)) == nil)
+        #expect(UploadOutcome.droppedCount(in: Data(#"{"dropped":"two"}"#.utf8)) == nil)
+        #expect(UploadOutcome.droppedCount(in: Data("[]".utf8)) == nil)
+        #expect(UploadOutcome.droppedCount(in: Data()) == nil)
+    }
+
     @Test("Batches hold at most 100 signals")
     func batchSize() async {
         let harness = Harness()

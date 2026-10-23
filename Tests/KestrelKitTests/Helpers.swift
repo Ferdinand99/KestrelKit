@@ -61,7 +61,8 @@ struct RecordedRequest: Sendable {
 }
 
 enum Reply: Sendable {
-    case status(Int, headers: [String: String] = [:])
+    /// `body` is sent as given; without one, a 202 says `{"accepted":1}` and others say nothing.
+    case status(Int, headers: [String: String] = [:], body: String? = nil)
     case networkError
 
     static let accepted = Reply.status(202)
@@ -129,10 +130,10 @@ final class MockURLProtocol: URLProtocol {
             body: gzipped ? gunzip(raw) : raw
         )
         switch server.handle(recorded) {
-        case let .status(code, replyHeaders):
+        case let .status(code, replyHeaders, replyBody):
             let response = HTTPURLResponse(url: url, statusCode: code, httpVersion: "HTTP/1.1", headerFields: replyHeaders)!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            let body = code == 202 ? Data(#"{"accepted":1}"#.utf8) : Data()
+            let body = replyBody.map { Data($0.utf8) } ?? (code == 202 ? Data(#"{"accepted":1}"#.utf8) : Data())
             client?.urlProtocol(self, didLoad: body)
             client?.urlProtocolDidFinishLoading(self)
         case .networkError:

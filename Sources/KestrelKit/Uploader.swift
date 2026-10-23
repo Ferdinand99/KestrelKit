@@ -5,7 +5,7 @@ import FoundationNetworking
 
 /// What the server said about a batch, reduced to what the SDK does next (docs/protocol.md).
 enum UploadOutcome: Equatable, Sendable {
-    /// 2xx: done.
+    /// 2xx: done, also when the server dropped some of the signals (`"dropped": m`).
     case accepted
     /// 400 and other 4xx: the batch can never succeed; drop it and don't retry.
     case rejected
@@ -37,6 +37,15 @@ enum UploadOutcome: Equatable, Sendable {
             return nil
         }
         return seconds
+    }
+
+    /// How many signals a `202` body says the server dropped (`{"accepted": 8, "dropped": 2}`),
+    /// or `nil` when it doesn't say. Only for the debug log: the batch is done either way.
+    static func droppedCount(in body: Data) -> Int? {
+        struct Answer: Decodable {
+            var dropped: Int?
+        }
+        return (try? JSONDecoder().decode(Answer.self, from: body))?.dropped
     }
 }
 
@@ -70,18 +79,22 @@ struct Uploader: Sendable {
 
     func send(_ body: Data) async -> UploadOutcome {
         let request = request(for: body)
-        let answer: (status: Int, retryAfter: String?)? = await withCheckedContinuation { continuation in
-            let task = session.dataTask(with: request) { _, response, _ in
+        let answer: (status: Int, retryAfter: String?, body: Data)? = await withCheckedContinuation { continuation in
+            let task = session.dataTask(with: request) { data, response, _ in
                 guard let http = response as? HTTPURLResponse else {
                     continuation.resume(returning: nil)
                     return
                 }
-                continuation.resume(returning: (http.statusCode, Self.header("Retry-After", in: http)))
+                continuation.resume(returning: (http.statusCode, Self.header("Retry-After", in: http), data ?? Data()))
             }
             task.resume()
         }
         guard let answer else { return .failed }
-        return UploadOutcome.classify(status: answer.status, retryAfter: answer.retryAfter)
+        let outcome = UploadOutcome.classify(status: answer.status, retryAfter: answer.retryAfter)
+        if outcome == .accepted, let dropped = UploadOutcome.droppedCount(in: answer.body), dropped > 0 {
+            Log.debug("The server dropped \(dropped) signal(s) of a batch because they broke the protocol's limits.")
+        }
+        return outcome
     }
 
     private static func header(_ name: String, in response: HTTPURLResponse) -> String? {

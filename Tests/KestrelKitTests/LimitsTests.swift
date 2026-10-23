@@ -95,4 +95,138 @@ struct LimitsTests {
         #expect(Scrubber.luhn("5500 0055 5555 5559"))
         #expect(!Scrubber.luhn("4111111111111112"))
     }
+
+    // MARK: - The server's own test cases (Keen Kestrel's src/analytics/clean.rs,
+    // src/analytics/app/mod.rs and src/event/scrub.rs), so both sides scrub alike.
+
+    @Test("IP addresses in values are replaced", arguments: [
+        ("from 203.0.113.7 now", "from [Filtered] now"),
+        ("/ip/2001:db8:0:0:1:0:0:1", "/ip/[Filtered]"),
+        ("203.0.113.7", "[Filtered]"),
+        ("10.0.0.1, 192.168.1.20", "[Filtered], [Filtered]"),
+        ("FE80:0:0:0:202:B3FF:FE1E:8329", "[Filtered]"),
+        ("user@10.0.0.1", "user@[Filtered]"),
+    ])
+    func ipAddresses(input: String, expected: String) {
+        #expect(Scrubber.scrub(input) == expected)
+    }
+
+    @Test("Shortened IPv6 and things that only look a bit like addresses are kept", arguments: [
+        "1.4.0",
+        "/v/1.2.3",
+        "12:30",
+        "12:30:45",
+        "::1",
+        "fe80::1",
+    ])
+    func notIPAddresses(input: String) {
+        #expect(Scrubber.scrub(input) == input)
+    }
+
+    @Test("Paths and free text scrub like the server's", arguments: [
+        ("/users/ada.lovelace@example.com/orders", "/users/[Filtered]/orders"),
+        ("/pay/4111111111111111/x/ada@example.com", "/pay/[Filtered]/x/[Filtered]"),
+        ("call +47 912 34 567", "call [Filtered]"),
+        ("/call/(555) 123-4567", "/call/[Filtered]"),
+        ("/call/0047-912-34-567", "/call/[Filtered]"),
+        ("paid with 4111 1111 1111 1111 today", "paid with [Filtered] today"),
+        ("header was Bearer abc.def-123=", "header was Bearer [Filtered]"),
+        ("'step=pay&token=abc&api_key=k1'", "'step=pay&token=[Filtered]&api_key=[Filtered]'"),
+        ("card=4111111111111111", "card=[Filtered]"),
+    ])
+    func serverCases(input: String, expected: String) {
+        #expect(Scrubber.scrub(input) == expected)
+    }
+
+    @Test("The server keeps these, so KestrelKit does too", arguments: [
+        "/orders/1234567890",
+        "/blog/2026-10-22/autumn",
+        "/posts/123/comments/456",
+        "order 1234567890123 shipped",
+        "0x0000000180044955",
+        "token=[Filtered]",
+        "plain words",
+    ])
+    func serverKeeps(input: String) {
+        #expect(Scrubber.scrub(input) == input)
+    }
+
+    @Test("Keys that name an IP address or a user agent are dropped, ignoring ASCII case")
+    func droppedKeys() {
+        for key in ["ip", "IP", "ip_address", "client_ip", "REMOTE_ADDR", "X-Forwarded-For", "x-real-ip",
+                    "Forwarded", "cf-connecting-ip", "true-client-ip", "x-client-ip", "x-cluster-client-ip",
+                    "fastly-client-ip", "HTTP_X_FORWARDED_FOR", "http_x_real_ip", "http_forwarded",
+                    "http_cf_connecting_ip", "http_true_client_ip", "http_x_client_ip",
+                    "user-agent", "User-Agent", "user_agent", "HTTP_USER_AGENT"] {
+            #expect(Scrubber.isDroppedKey(key), "\(key)")
+        }
+        for key in ["zip", "tip", "ip_hash", "ips", "agent", "user", "useragent", "plan", "\u{0130}P"] {
+            #expect(!Scrubber.isDroppedKey(key), "\(key)")
+        }
+    }
+
+    @Test("A payload is bounded and scrubbed like the server's")
+    func serverPayload() {
+        let payload = Limits.payload([
+            "email": "jane.doe@example.com",
+            "phone": "+47 912 34 567",
+            "card": "4111 1111 1111 1111",
+            "auth": "Authorization: Bearer abc.def-123",
+            "note": "order 123456789",
+            "pages": "12",
+            "pdf": "true",
+            "ip": "203.0.113.7",
+            "user_agent": "Mozilla/5.0",
+            "where": "from 203.0.113.7",
+            "long": String(repeating: "v", count: 500),
+            String(repeating: "k", count: 60): "x",
+        ])
+        #expect(payload["email"] == "[Filtered]")
+        #expect(payload["phone"] == "[Filtered]")
+        #expect(payload["card"] == "[Filtered]")
+        #expect(payload["auth"] == "Authorization: Bearer [Filtered]")
+        #expect(payload["note"] == "order 123456789")
+        #expect(payload["pages"] == "12" && payload["pdf"] == "true")
+        #expect(payload["ip"] == nil && payload["user_agent"] == nil)
+        #expect(payload["where"] == "from [Filtered]")
+        #expect(payload["long"]?.unicodeScalars.count == 200)
+        #expect(payload[String(repeating: "k", count: 40)] == "x")
+        #expect(payload.count == 10)
+    }
+
+    @Test("Dropped keys don't use up the 20, and are cleaned before the check")
+    func droppedKeysInPayloads() {
+        var own: [String: String] = [" IP\u{0007} ": "203.0.113.7", "User-Agent": "Mozilla/5.0"]
+        for i in 0..<20 { own["key\(i < 10 ? "0" : "")\(i)"] = "\(i)" }
+        let payload = Limits.payload(own, defaults: ["x-forwarded-for": "10.0.0.1"])
+        #expect(payload.count == 20)
+        #expect(payload.keys.allSatisfy { $0.hasPrefix("key") })
+    }
+
+    @Test("Every type KestrelKit sends is one the server accepts as it is", arguments: [
+        "Paywall.shown",
+        "  Paywall shown \n",
+        "Økonomi.åpnet",
+        "👍🏽 liked",
+        "tab\there",
+        "e\u{301}",
+        "\r\nline",
+        "a/b:c?d=e",
+        "\u{00A0}nbsp\u{00A0}",
+        "\u{212A}elvin",
+        String(repeating: "é", count: 150),
+        String(repeating: "x", count: 150),
+        String(repeating: "👍🏽", count: 60),
+    ])
+    func typesTheServerAccepts(raw: String) throws {
+        let type = try #require(Limits.signalType(raw))
+        // The server's rule (src/analytics/app/mod.rs, `signal_type`): after trimming, 1–100
+        // characters from [A-Za-z0-9._-], or the signal is dropped; longer types are cut.
+        let allowed = type.unicodeScalars.allSatisfy { scalar in
+            scalar.isASCII && (CharacterSet.alphanumerics.contains(scalar) || "._-".unicodeScalars.contains(scalar))
+        }
+        #expect(allowed, "\(type)")
+        #expect((1...100).contains(type.unicodeScalars.count))
+        #expect(type == type.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
 }
