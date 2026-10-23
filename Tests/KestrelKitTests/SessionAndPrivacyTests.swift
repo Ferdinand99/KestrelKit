@@ -169,6 +169,20 @@ struct PrivacyTests {
         #expect(harness.server.signals.first?.payload == ["email": "[Filtered]", "plan": "pro", "tier": "1"])
     }
 
+    @Test("IP addresses and user agents never leave the device")
+    func ipAndUserAgent() async {
+        let harness = Harness()
+        let client = harness.client(.init(testMode: false, flushInterval: 0, defaultPayload: ["client_ip": "10.0.0.1"], automaticSignals: false))
+        client.signal("Request.done", payload: [
+            "ip": "203.0.113.7",
+            "User-Agent": "Mozilla/5.0",
+            "via": "proxy 2001:db8:0:0:1:0:0:1",
+            "status": "200",
+        ])
+        await client.flush()
+        #expect(harness.server.signals.first?.payload == ["via": "proxy [Filtered]", "status": "200"])
+    }
+
     @Test("Invalid types are cleaned, empty ones dropped")
     func types() async {
         let harness = Harness()

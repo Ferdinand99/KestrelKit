@@ -57,8 +57,9 @@ public enum Kestrel {
     /// - Parameters:
     ///   - type: 1–100 characters from `A–Z a–z 0–9 . _ -`; other characters become `_`.
     ///   - payload: At most 20 keys (up to 40 characters) with values up to 200 characters.
-    ///     Values that look like an email address, phone number or card number are replaced
-    ///     by `[Filtered]`.
+    ///     Values that look like an email address, phone number, card number, credential or
+    ///     IP address are replaced by `[Filtered]`; keys such as `ip` or `user_agent` are
+    ///     dropped.
     public static func signal(_ type: String, payload: [String: String] = [:]) {
         guard let client = state.withLock({ $0.client }) else {
             Log.debug("Kestrel.signal(\"\(type)\") before Kestrel.configure; dropped.")

@@ -10,11 +10,13 @@ enum Limits {
     static let maxPayloadKeys = 20
     static let maxKeyLength = 40
     static let maxValueLength = 200
-    /// For the other strings (bundle id, versions, model, locale). A proposal in the protocol.
+    /// For the other strings (bundle id, versions, model, locale); P4 in the protocol.
     static let maxFieldLength = 200
 
     /// A valid signal type: 1–100 characters from `[A-Za-z0-9._-]`. Other characters become
-    /// `_` (so `Paywall shown` is sent as `Paywall_shown`); an empty type gives `nil`.
+    /// `_` (so `Paywall shown` is sent as `Paywall_shown`); an empty type gives `nil`. The
+    /// server drops a signal whose type has other characters, so every type KestrelKit sends
+    /// goes through here.
     static func signalType(_ raw: String) -> String? {
         var type = ""
         for character in raw.trimmingCharacters(in: .whitespacesAndNewlines) {
@@ -30,6 +32,7 @@ enum Limits {
 
     /// The payload to send: the signal's own keys first (sorted), then the default payload's
     /// keys it doesn't have (sorted), at most 20, each key and value cleaned, scrubbed and cut.
+    /// Keys that name an IP address or a user agent are dropped, as the server would drop them.
     static func payload(_ own: [String: String], defaults: [String: String] = [:]) -> [String: String] {
         let ordered = own.keys.sorted().map { ($0, own[$0]!) }
             + defaults.keys.filter { own[$0] == nil }.sorted().map { ($0, defaults[$0]!) }
@@ -41,6 +44,10 @@ enum Limits {
             }
             let key = truncate(clean(rawKey), to: maxKeyLength)
             guard !key.isEmpty, result[key] == nil else { continue }
+            if Scrubber.isDroppedKey(key) {
+                Log.debug("The payload key \"\(key)\" names an IP address or a user agent, which Kestrel doesn't keep; dropped.")
+                continue
+            }
             result[key] = truncate(clean(Scrubber.scrub(rawValue)), to: maxValueLength)
         }
         return result

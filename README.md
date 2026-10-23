@@ -12,8 +12,8 @@
   <img src="https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%20%7C%20visionOS-lightgrey.svg" alt="Platforms">
 </p>
 
-> **Status: early.** KestrelKit works and is tested, but Keen Kestrel's app analytics are still being
-> built (planned for Kestrel v0.2). The API may still change before 1.0.
+> **Status: early.** KestrelKit works and is tested. It needs Keen Kestrel v0.2 or later, the first
+> version with app analytics. The API may still change before 1.0.
 
 KestrelKit is a small Swift package that tells you how your app is used, without telling you who uses
 it. Your app sends **signals**, such as `Paywall.shown` or `Export.finished`. KestrelKit queues them on
@@ -95,7 +95,7 @@ the app moves to the background. `await Kestrel.flush()` sends them right away.
 
 | Option | Default | What it does |
 |---|---|---|
-| `debugSignals` | `.flag` | Signals from debug builds are sent with `flags.debug` set. `.drop` keeps them on the device instead. |
+| `debugSignals` | `.flag` | Signals from debug builds are sent with `flags.debug` set, and Kestrel leaves them out of its dashboards unless you include test signals. `.drop` keeps them on the device instead. |
 | `testMode` | `nil` | `true` treats every signal as a test signal (UI tests, internal builds); `false` never does. `nil` follows the build. |
 | `flushInterval` | `30` | Seconds between sends. |
 | `defaultPayload` | `[:]` | Added to every signal; a signal's own keys win. |
@@ -115,12 +115,20 @@ Each signal has:
 - three **flags**: debug build, TestFlight, simulator.
 
 **Never collected:** the IDFA or IDFV, the device name, the user's name or email, location, contacts,
-IP addresses (Kestrel doesn't store them), or anything to fingerprint a device. Payload values that look
-like an email address, a phone number or a card number are replaced by `[Filtered]` on the device, and
-Kestrel scrubs them again on the server.
+IP addresses (Kestrel doesn't store them), or anything to fingerprint a device.
+
+Payloads are filtered on the device, with the same rules Kestrel applies again on the server:
+
+- values that look like an email address, a phone number, a card number, an IP address, a
+  `Bearer`/`Basic` credential or a `token=…`-style secret are replaced by `[Filtered]`;
+- keys that name an IP address or a user agent (`ip`, `client_ip`, `x-forwarded-for`, `user_agent`
+  and the like) are dropped with their values.
 
 Payloads are limited to 20 keys of up to 40 characters, with values of up to 200 characters. Keep
-personal data out of them; the scrubbing is a safety net, not a licence.
+personal data out of them; the filtering is a safety net, not a licence.
+
+Signal types use `A–Z a–z 0–9 . _ -`; KestrelKit turns other characters into `_`
+(`Paywall shown` becomes `Paywall_shown`), because Kestrel drops signals with any other type.
 
 The package ships a privacy manifest (`PrivacyInfo.xcprivacy`) that declares no tracking, product
 interaction and a device id (the install id) collected for analytics and not linked to the user,
