@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'sha256-WZRJfWvsnNCPcxzZwvyhovnZGqhZaC+8gPGPRbx6wTk=' https://kestrel.hedgerow.tools; style-src 'self'; img-src 'self'; font-src 'self'; connect-src https://kestrel.hedgerow.tools; base-uri 'self'; form-action 'none'"
+    />
+    <title>KestrelKit — privacy-friendly app analytics for Keen Kestrel</title>
+    <meta
+      name="description"
+      content="KestrelKit is a small Swift package with no dependencies that sends privacy-friendly usage signals from your iOS or macOS app to your own Keen Kestrel. Early release."
+    />
+    <script>document.documentElement.classList.add("js");</script>
+    <link rel="canonical" href="https://hedgerow.tools/KestrelKit/" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.png" type="image/png" sizes="48x48" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f5f7" media="(prefers-color-scheme: light)" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://hedgerow.tools/KestrelKit/" />
+    <meta property="og:site_name" content="KestrelKit" />
+    <meta property="og:title" content="KestrelKit — privacy-friendly app analytics for Keen Kestrel" />
+    <meta
+      property="og:description"
+      content="A dependency-free Swift package that sends usage signals from your app to your own Keen Kestrel. No IDFA, no IDFV, works offline. Early release."
+    />
+    <meta property="og:image" content="https://hedgerow.tools/KestrelKit/og-image.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Keen Kestrel logo, an amber kestrel on a dark tile, with the tagline “Know what broke. See how it’s used.”" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="KestrelKit — privacy-friendly app analytics for Keen Kestrel" />
+    <meta
+      name="twitter:description"
+      content="A dependency-free Swift package that sends usage signals from your app to your own Keen Kestrel. No IDFA, no IDFV, works offline. Early release."
+    />
+    <meta name="twitter:image" content="https://hedgerow.tools/KestrelKit/og-image.png" />
+    <link rel="preload" href="fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareSourceCode",
+        "name": "KestrelKit",
+        "description": "A Swift package with no dependencies that sends privacy-friendly app analytics signals to a self-hosted Keen Kestrel. Early release.",
+        "url": "https://hedgerow.tools/KestrelKit/",
+        "codeRepository": "https://github.com/Ferdinand99/KestrelKit",
+        "programmingLanguage": "Swift",
+        "runtimePlatform": "iOS, macOS, tvOS, watchOS, visionOS",
+        "image": "https://hedgerow.tools/KestrelKit/og-image.png",
+        "license": "https://github.com/Ferdinand99/KestrelKit/blob/main/LICENSE",
+        "sameAs": ["https://github.com/Ferdinand99/KestrelKit"]
+      }
+    </script>
+    <script src="app.js" defer></script>
+    <script defer src="https://kestrel.hedgerow.tools/js/k.js" data-key="90daafcccde19016b43c733b040b6863"></script>
+  </head>
+  <body>
+    <svg width="0" height="0" class="vh" aria-hidden="true" focusable="false">
+      <symbol id="gh" viewBox="0 0 16 16">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+      </symbol>
+    </svg>
+
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="topbar" id="top">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#top">
+          <img src="favicon.svg" alt="" width="28" height="28" />
+          <span>KestrelKit</span>
+        </a>
+
+        <button class="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="topnav" hidden>
+          <span></span><span></span>
+        </button>
+
+        <nav class="topnav" id="topnav" aria-label="Main">
+          <a class="topnav-link" href="#install">Install</a>
+          <a class="topnav-link" href="#usage">Usage</a>
+          <a class="topnav-link" href="#privacy">Privacy</a>
+          <a class="topnav-link" href="#fit">How it fits</a>
+          <a class="topnav-link" href="https://github.com/Ferdinand99/KestrelKit/blob/main/docs/protocol.md">Protocol</a>
+          <a class="btn btn-ghost btn-sm" href="https://github.com/Ferdinand99/KestrelKit" aria-label="KestrelKit on GitHub">
+            <svg class="gh-mark" aria-hidden="true"><use href="#gh"></use></svg>
+            <span>GitHub</span>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- Hero ============================================================ -->
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap">
+          <div class="hero-copy">
+            <div class="hero-icon">
+              <img src="favicon.svg" width="96" height="96" alt="" />
+            </div>
+            <a class="live-pill" href="#install">
+              <span class="dot is-live" aria-hidden="true"></span>
+              <span>v0.1 · early release</span>
+              <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#chevron-right"></use></svg>
+            </a>
+            <h1 class="display" id="hero-title">How your app is used.<br class="br-wide" /> Not who uses it.</h1>
+            <p class="lead">
+              KestrelKit is a small Swift package that sends privacy-friendly usage signals, such as
+              <code>Paywall.shown</code>, from your iOS or macOS app to your own Keen Kestrel.
+            </p>
+            <p class="hero-fine">No dependencies. No IDFA, no IDFV, no fingerprinting.</p>
+            <div class="hero-actions">
+              <a class="btn btn-primary btn-lg" href="https://github.com/Ferdinand99/KestrelKit">
+                <svg class="gh-mark" aria-hidden="true"><use href="#gh"></use></svg>
+                <span>View on GitHub</span>
+              </a>
+              <a class="btn btn-ghost btn-lg" href="https://hedgerow.tools/Keen-Kestrel/">
+                <img src="favicon.svg" class="icon" alt="" width="20" height="20" />
+                <span>Keen Kestrel</span>
+              </a>
+            </div>
+            <p class="hero-meta"><span>MIT licensed</span><span>Swift 6</span><span>Part of Keen Kestrel</span></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Install ========================================================= -->
+      <section class="section" id="install" aria-labelledby="install-title">
+        <div class="wrap">
+          <div class="split">
+            <header class="split-copy reveal">
+              <p class="eyebrow">Install</p>
+              <h2 class="headline" id="install-title">One package, nothing else.</h2>
+              <p class="sub">
+                In Xcode, choose <strong>File › Add Package Dependencies…</strong> and enter the
+                repository URL, or add it to your <code>Package.swift</code>.
+              </p>
+              <ul class="chips sdk-chips" aria-label="Platforms">
+                <li class="chip">iOS 15</li>
+                <li class="chip">macOS 12</li>
+                <li class="chip">tvOS 15</li>
+                <li class="chip">watchOS 9</li>
+                <li class="chip">visionOS 1</li>
+              </ul>
+              <p class="split-note">
+                Swift 6 with strict concurrency, and a privacy manifest included. Needs
+                <strong>Keen Kestrel v0.2</strong> or later, the first version with app analytics.
+              </p>
+            </header>
+
+            <div class="split-art reveal">
+              <div class="code-card">
+                <div class="code-head">
+                  <span>Xcode › Add Package Dependencies…</span>
+                </div>
+                <pre tabindex="0" role="region" translate="no" aria-label="The package URL"><code>https://github.com/Ferdinand99/KestrelKit</code></pre>
+              </div>
+
+              <div class="code-card">
+                <div class="code-head">
+                  <span>Package.swift</span>
+                  <span class="pill status-accent"><span class="dot"></span>0.1.0</span>
+                </div>
+                <pre tabindex="0" role="region" translate="no" aria-label="Example: adding KestrelKit to Package.swift"><code>dependencies: [
+    .package(url: <span class="s">"https://github.com/Ferdinand99/KestrelKit"</span>, from: <span class="s">"0.1.0"</span>),
+],
+targets: [
+    .target(
+        name: <span class="s">"MyApp"</span>,
+        dependencies: [.product(name: <span class="s">"KestrelKit"</span>, package: <span class="s">"KestrelKit"</span>)]
+    ),
+]</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Usage =========================================================== -->
+      <section class="section section-alt" id="usage" aria-labelledby="usage-title">
+        <div class="wrap">
+          <div class="split">
+            <header class="split-copy reveal">
+              <p class="eyebrow">Usage</p>
+              <h2 class="headline" id="usage-title">Configure once. Send signals.</h2>
+              <p class="sub">
+                Give KestrelKit your Kestrel’s address and the project’s key: the 32 hex characters at
+                the start of the project’s DSN, on its settings page in Kestrel.
+              </p>
+              <p class="split-note">
+                Every call returns at once and is safe from any thread. Signals are sent every
+                30 seconds and when the app moves to the background; <code>await Kestrel.flush()</code>
+                sends them right away. <code>App.launched</code> and <code>Session.started</code> are
+                sent for you.
+              </p>
+              <p class="split-note">
+                <strong>Kestrel.Configuration</strong> sets test mode, the flush interval, a default
+                payload, the automatic signals and the size of the offline queue. The defaults suit
+                most apps.
+              </p>
+            </header>
+
+            <div class="split-art reveal">
+              <div class="code-card">
+                <div class="code-head">
+                  <span>Quick start</span>
+                </div>
+                <pre tabindex="0" role="region" translate="no" aria-label="Example: configuring KestrelKit and sending signals"><code><span class="k">import</span> KestrelKit
+
+Kestrel.configure(
+    url: URL(string: <span class="s">"https://kestrel.example.com"</span>)!,
+    key: <span class="s">"0123456789abcdef0123456789abcdef"</span>
+)
+
+Kestrel.signal(<span class="s">"Paywall.shown"</span>, payload: [<span class="s">"plan"</span>: <span class="s">"pro"</span>])
+Kestrel.signal(<span class="s">"Export.finished"</span>, payload: [<span class="s">"pages"</span>: 12, <span class="s">"pdf"</span>: <span class="k">true</span>])</code></pre>
+              </div>
+
+              <div class="code-card">
+                <div class="code-head">
+                  <span>SwiftUI</span>
+                </div>
+                <pre tabindex="0" role="region" translate="no" aria-label="Example: configuring KestrelKit in a SwiftUI app"><code><span class="k">import</span> SwiftUI
+<span class="k">import</span> KestrelKit
+
+<span class="k">@main</span>
+<span class="k">struct</span> MyApp: App {
+    <span class="k">init</span>() {
+        Kestrel.configure(
+            url: URL(string: <span class="s">"https://kestrel.example.com"</span>)!,
+            key: <span class="s">"0123456789abcdef0123456789abcdef"</span>,
+            configuration: .init(defaultPayload: [<span class="s">"theme"</span>: <span class="s">"dark"</span>])
+        )
+    }
+
+    <span class="k">var</span> body: <span class="k">some</span> Scene {
+        WindowGroup { ContentView() }
+    }
+}</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Privacy ========================================================= -->
+      <section class="section" id="privacy" aria-labelledby="privacy-title">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <p class="eyebrow">Privacy</p>
+            <h2 class="headline" id="privacy-title">Counts and trends, not profiles.</h2>
+            <p class="sub">
+              KestrelKit sends what a dashboard needs to count users, sessions, versions and devices,
+              and nothing that says who someone is.
+            </p>
+          </header>
+
+          <div class="ledger">
+            <div class="card ledger-col reveal">
+              <h4><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#x-circle"></use></svg> Never collected</h4>
+              <ul class="ticks">
+                <li>The IDFA or the IDFV</li>
+                <li>The device name, the user’s name or email</li>
+                <li>Location or contacts</li>
+                <li>Cookies, or anything to fingerprint a device</li>
+                <li>IP addresses: Kestrel doesn’t store them</li>
+              </ul>
+            </div>
+            <div class="card ledger-col reveal d1">
+              <h4><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#check-circle"></use></svg> What a signal holds</h4>
+              <ul class="ticks">
+                <li>Its type, your payload and the time it happened</li>
+                <li>
+                  A random install id: a UUID created once and kept in your app’s own defaults. Kestrel
+                  stores only a keyed hash of it.
+                </li>
+                <li>A random session id, new at launch and after 5 minutes or more in the background</li>
+                <li>The app’s bundle id, version and build</li>
+                <li>Platform, OS version, hardware model (such as <code>iPhone16,2</code>) and locale</li>
+                <li>Three flags: debug build, TestFlight, simulator</li>
+              </ul>
+            </div>
+          </div>
+
+          <ul class="grid grid-after">
+            <li class="card feature reveal">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#eye-off"></use></svg></span>
+              <h3>Filtered on the device</h3>
+              <p>
+                Values that look like an email, a phone or card number, an IP address, a
+                <code>Bearer</code> credential or a <code>token=…</code> secret become
+                <code>[Filtered]</code>. Keys such as <code>ip</code> or <code>user_agent</code> are
+                dropped. Kestrel applies the same rules again.
+              </p>
+            </li>
+            <li class="card feature reveal d1">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#sliders"></use></svg></span>
+              <h3>Small payloads</h3>
+              <p>
+                At most 20 keys of up to 40 characters, with values of up to 200. Signal types use
+                <code>A–Z a–z 0–9 . _ -</code>; other characters become <code>_</code>.
+              </p>
+            </li>
+            <li class="card feature reveal d2">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#pause"></use></svg></span>
+              <h3>An opt-out switch</h3>
+              <p>
+                When <code>Kestrel.isEnabled</code> is <code>false</code>, nothing is stored or sent.
+                Turning it off deletes the queued signals and the install id, and the choice is
+                remembered. Nothing is sent before <code>configure</code> either.
+              </p>
+            </li>
+            <li class="card feature reveal">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#archive"></use></svg></span>
+              <h3>Works offline</h3>
+              <p>
+                Signals wait in a small queue file in Application Support, excluded from backups, and
+                go out when the network is back. By default up to 5,000 are kept; the oldest go first.
+              </p>
+            </li>
+            <li class="card feature reveal d1">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#upload"></use></svg></span>
+              <h3>Sent in batches</h3>
+              <p>
+                Up to 100 signals or 256 KB a batch, gzipped when that makes it smaller. A busy or
+                unreachable server gets a backoff from 30 seconds up to an hour, or its
+                <code>Retry-After</code>.
+              </p>
+            </li>
+            <li class="card feature reveal d2">
+              <span class="list-icon"><svg class="icon" aria-hidden="true"><use href="assets/icons.svg#shield-check"></use></svg></span>
+              <h3>A privacy manifest</h3>
+              <p>
+                <code>PrivacyInfo.xcprivacy</code> declares no tracking, and product interaction and a
+                device id (the install id) used for analytics and not linked to the user.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- How it fits ===================================================== -->
+      <section class="section" id="fit" aria-labelledby="fit-title">
+        <div class="wrap">
+          <div class="split">
+            <header class="split-copy reveal">
+              <p class="eyebrow">How it fits</p>
+              <h2 class="headline" id="fit-title">Usage from KestrelKit. Crashes from Sentry’s SDK.</h2>
+              <p class="sub">
+                KestrelKit sends app signals to the App tab of
+                <a href="https://hedgerow.tools/Keen-Kestrel/">Keen Kestrel</a>, the self-hosted error
+                tracker and analytics tool. It doesn’t report crashes: for those, keep the official
+                Sentry SDK and point its DSN at the same Kestrel project.
+              </p>
+              <p class="split-note">
+                The key is the same in both, so one project gets errors and analytics. The wire format
+                is in the <a href="https://github.com/Ferdinand99/KestrelKit/blob/main/docs/protocol.md">signals protocol</a>.
+              </p>
+            </header>
+
+            <div class="split-art reveal">
+              <div class="code-card">
+                <div class="code-head">
+                  <span>One Kestrel project, two SDKs</span>
+                </div>
+                <pre tabindex="0" role="region" translate="no" aria-label="Example: the Sentry SDK for crashes and KestrelKit for usage, with the same project key"><code><span class="c">// Crashes: the official Sentry SDK, with the project’s DSN</span>
+SentrySDK.start { options <span class="k">in</span>
+    options.dsn = <span class="s">"https://0123456789abcdef0123456789abcdef@kestrel.example.com/1"</span>
+}
+
+<span class="c">// Usage: KestrelKit, with the key from the same DSN</span>
+Kestrel.configure(
+    url: URL(string: <span class="s">"https://kestrel.example.com"</span>)!,
+    key: <span class="s">"0123456789abcdef0123456789abcdef"</span>
+)</code></pre>
+              </div>
+
+              <div class="callout status-info">
+                <svg class="icon" aria-hidden="true"><use href="assets/icons.svg#info"></use></svg>
+                <p>
+                  <span class="callout-title">Test signals stay out of the way</span>
+                  Signals from debug builds are sent with a debug flag, and Kestrel leaves them out of
+                  its dashboards unless you include test signals.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap">
+        <div class="footer-top">
+          <a class="brand" href="#top">
+            <img src="favicon.svg" alt="" width="24" height="24" loading="lazy" />
+            <span>KestrelKit</span>
+          </a>
+          <span>Made in Norway</span>
+        </div>
+        <nav aria-label="Project links">
+          <ul class="footer-links">
+            <li><a href="https://github.com/Ferdinand99/KestrelKit">GitHub</a></li>
+            <li><a href="https://github.com/Ferdinand99/KestrelKit#readme">README</a></li>
+            <li><a href="https://github.com/Ferdinand99/KestrelKit/blob/main/docs/protocol.md">Protocol</a></li>
+            <li><a href="https://hedgerow.tools/Keen-Kestrel/">Keen Kestrel</a></li>
+            <li><a href="https://hedgerow.tools/">Hedgerow</a></li>
+            <li><a href="https://status.hedgerow.tools/">Status</a></li>
+            <li><a href="https://github.com/Ferdinand99/KestrelKit/blob/main/LICENSE">MIT license</a></li>
+          </ul>
+        </nav>
+        <p class="sibling">
+          Part of <a href="https://hedgerow.tools/Keen-Kestrel/">Keen Kestrel</a>, error tracking and
+          analytics, one of the small self-hosted apps in <a href="https://hedgerow.tools/">Hedgerow</a>.
+        </p>
+        <p>
+          KestrelKit is open source under the MIT license and not affiliated with Sentry or Apple. This
+          site uses no cookies. Visits are counted with Keen Kestrel itself, which keeps no IP addresses
+          or lasting identifiers and respects Global Privacy Control.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

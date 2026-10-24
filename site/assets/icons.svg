@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Icon sprite shared with Vigilant Vole, Nimble Newt and Keen Kestrel, trimmed to the icons this
+    page uses. Drawn on a 24×24 grid with a
+    1.5px stroke, round caps and joins. Usage:
+      <svg class="icon" aria-hidden="true"><use href="/static/icons.svg#gear"></use></svg>
+    Paint comes from currentColor, so icons follow the text colour around them.
+  -->
+  <defs>
+    <symbol id="shield-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.25l7.25 2.9v5.35c0 4.6-3.1 8.15-7.25 9.25-4.15-1.1-7.25-4.65-7.25-9.25V6.15z"/><path d="M9 12.2l2.1 2.1 4-4.1"/>
+    </symbol>
+    <symbol id="archive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.5" y="4.5" width="17" height="4.5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/>
+    </symbol>
+    <symbol id="pause" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6.5" y="5" width="3.5" height="14" rx="1.2"/><rect x="14" y="5" width="3.5" height="14" rx="1.2"/>
+    </symbol>
+    <symbol id="chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9.5 5.5L16 12l-6.5 6.5"/>
+    </symbol>
+    <symbol id="info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.75"/><path d="M12 11v5.25"/><circle cx="12" cy="7.9" r=".95" fill="currentColor" stroke="none"/>
+    </symbol>
+    <symbol id="check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.75"/><path d="M8.25 12.25l2.5 2.5 5-5.25"/>
+    </symbol>
+    <symbol id="x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.75"/><path d="M9.25 9.25l5.5 5.5M14.75 9.25l-5.5 5.5"/>
+    </symbol>
+    <symbol id="sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h8.5M17.5 7H20M4 17h2.5M11.5 17H20"/><circle cx="15" cy="7" r="2.25"/><circle cx="9" cy="17" r="2.25"/>
+    </symbol>
+    <symbol id="eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9.9 6.05A9 9 0 0 1 12 5.75C17.75 5.75 21.25 12 21.25 12a16 16 0 0 1-2.6 3.35M14.1 14.2A3 3 0 0 1 9.8 9.9M6.55 7.6A15.6 15.6 0 0 0 2.75 12S6.25 18.25 12 18.25a8.9 8.9 0 0 0 4.4-1.15"/>
+      <path d="M4 4l16 16"/>
+    </symbol>
+    <symbol id="upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M5 19.5h14"/>
+    </symbol>
+  </defs>
+</svg>
