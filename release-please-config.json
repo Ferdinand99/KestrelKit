@@ -10,7 +10,8 @@
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
       "include-component-in-tag": false,
-      "extra-files": ["Sources/KestrelKit/Version.swift"]
+      "extra-files": ["Sources/KestrelKit/Version.swift"],
+      "exclude-paths": ["site"]
     }
   }
 }
