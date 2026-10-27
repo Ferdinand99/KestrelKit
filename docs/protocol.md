@@ -25,6 +25,10 @@ POST {baseURL}/ingest/v1/signals
 No cookies are sent or accepted (P12). Apps send no `Origin` header. **Server:** if a request has
 one, it must be one of the key's allowed origins, or the answer is `403`.
 
+SDKs send only over `https://`. KestrelKit accepts `http://` for `localhost` and, in debug builds,
+for any host; it never follows a redirect, reads at most 64 KB of an answer, and gives a request
+60 seconds at most.
+
 KestrelKit compresses bodies of 1 KB or more with gzip, and sends the compressed form only when it
 is smaller (P3). It uses no other encoding.
 
@@ -79,8 +83,8 @@ sends:
   is sent as `Paywall_shown`), then cuts it to 100 characters. An empty type isn't sent. This
   matters, because the server drops a signal whose type has other characters (see below).
 - It converts numbers and booleans in payloads to strings (`12`, `true`), puts the signal's own keys
-  before the default payload's, and drops keys that name an IP address or a user agent (see
-  [Scrubbing](#scrubbing-p13)).
+  before the default payload's, and drops keys that name an IP address or a user agent, or look
+  like they hold a secret (see [Scrubbing](#scrubbing-p13)).
 - It removes control characters from the other strings, trims them and cuts them to 200.
 
 ### Lenient per signal, strict per batch (P5)
@@ -101,7 +105,7 @@ has more than 100 signals or is too large. Otherwise it fixes or drops each sign
 | has numbers or booleans as payload values | stores them as strings (`12`, `true`). |
 | has objects, arrays or `null` as payload values | drops those keys. |
 | has more than 20 payload keys | keeps the first 20 it reads. |
-| has payload keys over 40 characters | cuts them to 40. Empty keys and keys that name an IP address or a user agent are dropped. |
+| has payload keys over 40 characters | cuts them to 40. Empty keys and keys that name an IP address or a user agent are dropped. A key that looks like it holds a secret is dropped too (see [Scrubbing](#scrubbing-p13)). |
 
 The `202` answer counts the signals that were stored, and says how many were dropped when some
 were (see [Responses](#responses)).
@@ -120,21 +124,25 @@ project says otherwise) are dropped.
 
 Both sides replace payload values that look like personal data with `[Filtered]`, with the same
 rules (Keen Kestrel's `src/analytics/clean.rs` and `src/event/scrub.rs`, KestrelKit's
-`Scrubber.swift`), in this order:
+`Scrubber.swift`). Before the values are scrubbed, both remove control characters (so
+`john@exa<TAB>mple.com` can't slip past the patterns) and, in KestrelKit, cut the value to 2,000
+characters (it is cut to 200 afterwards). Then, in this order:
 
 1. Card numbers: 13–19 digits, optionally grouped by single spaces or dashes, that pass the Luhn
-   check.
+   check. KestrelKit also accepts dots and non-breaking spaces (U+00A0, U+2007, U+202F) as separators;
+   the server doesn't yet.
 2. `Bearer …` and `Basic …` credentials. The scheme stays: `Bearer [Filtered]`.
 3. `name=value` pairs whose name contains `pass`, `secret`, `token`, `auth`, `key`, `card` or
    `cookie`: `token=abc` becomes `token=[Filtered]`.
 4. Email addresses.
 5. IP addresses: IPv4, and IPv6 written out with at least four groups (`2001:db8:0:0:1:0:0:1`).
-   Shortened IPv6 with `::` isn't recognised.
+   KestrelKit also recognises IPv6 shortened with one `::` (`2001:db8::1`, `::1`, `fe80::1`); the
+   server doesn't yet.
 6. Phone numbers: 9–15 digits that start with `+` or `00`, or are written in at least three groups.
    Plain digit runs (order numbers, ids), dates and versions are kept.
 
-Payload keys that name an IP address or a user agent are dropped with their values. The keys,
-compared ignoring ASCII case, are:
+Payload keys that name an IP address or a user agent, or look like they hold a secret, are dropped
+with their values. The IP address and user agent keys, compared ignoring ASCII case, are:
 
 - `ip`, `ip_address`, `client_ip`, `remote_addr`;
 - the forwarding headers `x-forwarded-for`, `x-real-ip`, `forwarded`, `cf-connecting-ip`,
@@ -142,6 +150,12 @@ compared ignoring ASCII case, are:
   `http_x_forwarded_for`, `http_x_real_ip`, `http_forwarded`, `http_cf_connecting_ip`,
   `http_true_client_ip`, `http_x_client_ip`;
 - `user-agent`, `user_agent`, `http_user_agent`.
+
+A key looks like it holds a secret when, ignoring ASCII case, it contains `pass`, `secret`, `token`,
+`auth`, `key`, `card`, `cookie` or `cvv` (so `password`, `apiKey`, `cardNumber` and `Authorization`,
+but also `keyboard_layout` and `author`), or has `ssn` as a word of its own (`ssn`, `user_ssn`; not
+`classname`). Both sides drop such keys (the server's own list for web event properties is the same
+without `cvv` and `ssn`).
 
 KestrelKit scrubs on the device, before a signal is queued. The server scrubs again, so older or
 other SDKs are covered too. Scrubbing is a safety net: apps should keep personal data out of
@@ -152,20 +166,22 @@ payloads.
 | Status | Meaning | What KestrelKit does |
 |---|---|---|
 | `202 {"accepted": n}` | Done: `n` signals were stored. When some were dropped (P5), the body also has `"dropped": m`. | Forgets the batch. Logs `dropped` in debug builds; never resends. |
-| other `2xx` | Done. | Forgets the batch. |
+| other `2xx`, or a `202` without `"accepted"` | Not Kestrel's answer: a captive portal, a proxy. | Keeps the batch and retries with backoff. |
+| `3xx` | A redirect. SDKs don't follow redirects. | Keeps the batch and retries with backoff. |
 | `400` | The batch is malformed: not JSON, no `signals` array, or an unknown or broken `Content-Encoding`. | Drops it and doesn't retry. |
-| `401` | No key, or an unknown one. | Stops sending until the next launch and keeps the queue. Logs in debug builds only. |
+| `401` | No key, or an unknown one. | Pauses sending for an hour and keeps the queue. Logs in debug builds only. |
 | `403` | The key is disabled, app analytics is off for the project, or the `Origin` header isn't allowed. | As `401`. |
 | `404` | The server has no app-signal ingest (an older Kestrel). | As `401`, so the signals arrive once the server is upgraded (P7). |
-| `408` | Request timeout. | Retries like a `5xx` (P7). |
+| `405`, `407`, `408`, `410` | Not verdicts on the batch: a proxy, a gateway or a server that moved. | Retries like a `5xx` (P7). |
 | `413` | More than 100 signals, or more than 256 KB, compressed or not. | Splits the batch and retries the halves; drops a single signal that is still too large. |
 | `429` | A rate limit: the server's per-IP limit or the key's `rate_limit_per_minute`. Both count requests, not signals. | Waits `Retry-After` seconds. |
 | `503` | The server's write queue is full, or it briefly can't take signals. | Waits `Retry-After` seconds. |
 | other `4xx` | | As `400` (P7). |
 | other `5xx`, network error | Something went wrong. | Keeps the batch and retries with backoff. |
 
-SDKs treat any `2xx` as done, whatever `n` and `m` are, so they never resend a batch the server has
-seen (P5, P7). Error responses have a `{"detail": "…"}` body meant for people; SDKs don't need to
+SDKs treat a `202` with an `accepted` count as done, whatever `n` and `m` are, so they never resend a
+batch the server has seen (P5, P7). Any other answer to a successful request can't be Kestrel's, and
+the batch is kept. Error responses have a `{"detail": "…"}` body meant for people; SDKs don't need to
 read it. All answers carry `Cache-Control: no-store`.
 
 **Retry-After (P8).** `429` and `503` carry `Retry-After` in seconds. KestrelKit reads it as a number

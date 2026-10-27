@@ -6,6 +6,9 @@ import Foundation
 actor Engine {
     /// A new session starts after this long in the background.
     static let sessionTimeout: TimeInterval = 5 * 60
+    /// How long sending pauses after 401, 403 or 404, which a server fix or a new key can cure
+    /// without the app being relaunched.
+    static let unavailablePause: TimeInterval = 3600
 
     private let uploader: Uploader
     private let configuration: Kestrel.Configuration
@@ -20,8 +23,6 @@ actor Engine {
     private var backgroundedAt: Date?
     private var backoff = Backoff()
     private var retryAt: Date?
-    /// Set after 401, 403 or 404; cleared by the next launch.
-    private var stoppedUntilRelaunch = false
 
     init(uploader: Uploader, configuration: Kestrel.Configuration, environment: Environment) {
         self.uploader = uploader
@@ -150,13 +151,19 @@ actor Engine {
     private enum Stop {
         case unavailable
         case backoff(retryAfter: TimeInterval?)
+        /// The app opted out while a batch was on its way.
+        case disabled
     }
 
     private func flush() async {
-        guard isEnabled, !stoppedUntilRelaunch else { return }
+        // Before the check, so that an opt-out that comes after it can't be missed: it
+        // cancels sending, and nothing resets that again until the next flush.
+        uploader.control.reset()
+        guard isEnabled else { return }
         if let retryAt, environment.now() < retryAt { return }
 
-        while true {
+        // Opting out can happen at any time, so each batch checks again.
+        while isEnabled {
             let batch = nextBatch()
             guard !batch.isEmpty else { return }
             let (handled, stop) = await deliver(batch)
@@ -165,9 +172,12 @@ actor Engine {
             case nil:
                 backoff.reset()
                 retryAt = nil
+            case .disabled:
+                return
             case .unavailable:
-                stoppedUntilRelaunch = true
-                Log.debug("The server refused the key or has app analytics turned off; nothing more is sent until the next launch.")
+                let pause = Self.unavailablePause * min(max(environment.jitter(), 0), 1)
+                retryAt = environment.now().addingTimeInterval(pause)
+                Log.debug("The server refused the key or has app analytics turned off; trying again in \(Int(pause)) s.")
                 return
             case let .backoff(retryAfter):
                 let delay = backoff.next(retryAfter: retryAfter, jitter: environment.jitter())
@@ -196,8 +206,12 @@ actor Engine {
     /// Sends `lines`, splitting on 413. Returns how many of the first lines are done with
     /// (accepted or dropped) and why it stopped early, if it did.
     private func deliver(_ lines: ArraySlice<Data>) async -> (handled: Int, stop: Stop?) {
+        guard isEnabled else { return (0, .disabled) }
         let body = Wire.body(lines: lines, sentAt: environment.now())
-        switch await uploader.send(body) {
+        let outcome = await uploader.send(body)
+        // An opt-out cancels the upload, which then looks like a failure: not one to back off for.
+        guard isEnabled else { return (0, .disabled) }
+        switch outcome {
         case .accepted:
             return (lines.count, nil)
         case .rejected:

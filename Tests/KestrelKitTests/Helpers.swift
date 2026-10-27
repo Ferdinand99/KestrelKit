@@ -64,6 +64,10 @@ enum Reply: Sendable {
     /// `body` is sent as given; without one, a 202 says `{"accepted":1}` and others say nothing.
     case status(Int, headers: [String: String] = [:], body: String? = nil)
     case networkError
+    /// Never answers; the request stays in flight until it is cancelled.
+    case hang
+    /// A 302 to `location`, which KestrelKit must not follow.
+    case redirect(to: String)
 
     static let accepted = Reply.status(202)
 }
@@ -138,6 +142,17 @@ final class MockURLProtocol: URLProtocol {
             client?.urlProtocolDidFinishLoading(self)
         case .networkError:
             client?.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet))
+        case .hang:
+            break
+        case let .redirect(location):
+            let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1", headerFields: ["Location": location])!
+            #if canImport(Darwin)
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: location)!), redirectResponse: response)
+            #else
+            // swift-corelibs-foundation traps on redirects from a custom URLProtocol.
+            _ = response
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            #endif
         }
     }
 
@@ -158,7 +173,7 @@ final class MockURLProtocol: URLProtocol {
 func mockSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockURLProtocol.self]
-    return URLSession(configuration: configuration)
+    return TransportDelegate.makeSession(configuration)
 }
 
 // MARK: - Clients

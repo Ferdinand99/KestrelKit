@@ -39,6 +39,35 @@ struct FacadeTests {
         #expect(signals[2].payload == ["pages": "12", "pdf": "true", "ratio": "0.5", "name": "report"])
     }
 
+    @Test("Plain http is refused except for localhost, and in debug builds")
+    func endpoints() {
+        func allowed(_ url: String, insecure: Bool) -> Bool {
+            Kestrel.isAllowedEndpoint(URL(string: url)!, allowsInsecure: insecure)
+        }
+        for insecure in [false, true] {
+            #expect(allowed("https://kestrel.example.com", insecure: insecure))
+            #expect(allowed("HTTPS://kestrel.example.com:8443/base", insecure: insecure))
+            #expect(allowed("http://localhost:3001", insecure: insecure))
+            #expect(allowed("http://127.0.0.1:3001", insecure: insecure))
+            #expect(allowed("http://[::1]:3001", insecure: insecure))
+            #expect(!allowed("ftp://kestrel.example.com", insecure: insecure))
+            #expect(!allowed("kestrel.example.com", insecure: insecure))
+        }
+        #expect(!allowed("http://kestrel.example.com", insecure: false))
+        #expect(!allowed("http://10.0.3.26:3001", insecure: false))
+        #expect(!allowed("http://localhost.evil.example", insecure: false))
+        #expect(allowed("http://10.0.3.26:3001", insecure: true))
+    }
+
+    @Test("configure refuses an address it won't send to")
+    func refusedEndpoint() async {
+        Kestrel.configure(url: URL(string: "ftp://kestrel.example.com")!, key: TestKey.value)
+        #expect(Kestrel.client == nil)
+        Kestrel.signal("A")
+        await Kestrel.flush()
+        #expect(!FileManager.default.fileExists(atPath: harness.directory.path))
+    }
+
     @Test("A second configure is ignored")
     func configureOnce() async {
         let other = MockServer()

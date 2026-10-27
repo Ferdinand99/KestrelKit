@@ -10,6 +10,9 @@ enum Limits {
     static let maxPayloadKeys = 20
     static let maxKeyLength = 40
     static let maxValueLength = 200
+    /// A payload value is cut to this many characters before it is scrubbed, so a huge value
+    /// costs little. Everything past `maxValueLength` is dropped anyway.
+    static let maxRawValueLength = 2_000
     /// For the other strings (bundle id, versions, model, locale); P4 in the protocol.
     static let maxFieldLength = 200
 
@@ -32,7 +35,8 @@ enum Limits {
 
     /// The payload to send: the signal's own keys first (sorted), then the default payload's
     /// keys it doesn't have (sorted), at most 20, each key and value cleaned, scrubbed and cut.
-    /// Keys that name an IP address or a user agent are dropped, as the server would drop them.
+    /// Keys that name an IP address or a user agent are dropped, as the server would drop them,
+    /// and so are keys that look like they hold a secret (`password`, `token`, `card`…).
     static func payload(_ own: [String: String], defaults: [String: String] = [:]) -> [String: String] {
         let ordered = own.keys.sorted().map { ($0, own[$0]!) }
             + defaults.keys.filter { own[$0] == nil }.sorted().map { ($0, defaults[$0]!) }
@@ -48,7 +52,14 @@ enum Limits {
                 Log.debug("The payload key \"\(key)\" names an IP address or a user agent, which Kestrel doesn't keep; dropped.")
                 continue
             }
-            result[key] = truncate(clean(Scrubber.scrub(rawValue)), to: maxValueLength)
+            if Scrubber.isSensitiveKey(key) {
+                Log.debug("The payload key \"\(key)\" looks like it holds a secret; dropped.")
+                continue
+            }
+            // Control characters go first: scrubbing "john@exa\tmple.com" as it is would miss
+            // the address, and removing the tab afterwards would put it back together.
+            let value = clean(truncate(rawValue, to: maxRawValueLength))
+            result[key] = truncate(Scrubber.scrub(value), to: maxValueLength)
         }
         return result
     }

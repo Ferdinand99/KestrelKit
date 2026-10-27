@@ -44,6 +44,35 @@ struct QueueTests {
         #expect(DiskQueue(directory: directory, maxCount: 3).lines == [line(2), line(3), line(4)])
     }
 
+    @Test("A full queue appends to the file and rewrites it only now and then")
+    func fullQueueRewritesRarely() throws {
+        func fileLines(_ queue: DiskQueue) throws -> Int {
+            try Data(contentsOf: queue.fileURL).split(separator: UInt8(ascii: "\n")).count
+        }
+        var queue = DiskQueue(directory: directory, maxCount: 3, compactAfter: 4)
+        for n in 0..<5 { queue.append(line(n)) }
+        #expect(queue.lines == [line(2), line(3), line(4)])
+        // Two signals were dropped from memory, but the file still has them: no rewrite yet.
+        #expect(try fileLines(queue) == 5)
+
+        queue.append(line(5))
+        #expect(try fileLines(queue) == 6)
+        // The fourth dropped signal compacts the file.
+        queue.append(line(6))
+        #expect(queue.lines == [line(4), line(5), line(6)])
+        #expect(try fileLines(queue) == 3)
+        #expect(DiskQueue(directory: directory, maxCount: 3).lines == [line(4), line(5), line(6)])
+    }
+
+    @Test("Many signals into a full queue keep the file small")
+    func fullQueueStaysBounded() throws {
+        var queue = DiskQueue(directory: directory, maxCount: 100)
+        for n in 0..<1_000 { queue.append(line(n)) }
+        let fileLines = try Data(contentsOf: queue.fileURL).split(separator: UInt8(ascii: "\n")).count
+        #expect(fileLines <= 100 + queue.compactAfter)
+        #expect(DiskQueue(directory: directory, maxCount: 100).lines == (900..<1_000).map(line))
+    }
+
     @Test("A smaller cap on the next launch trims the file")
     func capOnLoad() {
         var queue = DiskQueue(directory: directory, maxCount: 10)
