@@ -196,6 +196,10 @@ swift test
 The core builds and tests on Linux too; the parts that use UIKit, AppKit or WatchKit only build on
 Apple platforms. CI runs the tests on Linux and macOS and builds for every Apple platform.
 
+## Security
+
+The October 2026 security review of the SDK (what was found, fixed and left open) is in [`docs/security-review-2026-10.md`](docs/security-review-2026-10.md).
+
 ## License
 
 [MIT](LICENSE). The SDK goes into your app, so it uses a permissive license: it can ship in any
