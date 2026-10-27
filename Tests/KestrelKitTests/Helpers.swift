@@ -148,6 +148,10 @@ final class MockURLProtocol: URLProtocol {
             let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1", headerFields: ["Location": location])!
             #if canImport(Darwin)
             client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: URL(string: location)!), redirectResponse: response)
+            // When the delegate refuses to follow, the 302 itself is the answer. (A followed
+            // redirect would stop this load and start a new one on the target.)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocolDidFinishLoading(self)
             #else
             // swift-corelibs-foundation traps on redirects from a custom URLProtocol.
             _ = response
