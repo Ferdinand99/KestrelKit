@@ -7,7 +7,7 @@
 <p align="center"><strong>Privacy-friendly app analytics for iOS and macOS, sent to your own Keen Kestrel.</strong></p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/Swift-6-orange.svg" alt="Swift 6">
   <img src="https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%20%7C%20visionOS-lightgrey.svg" alt="Platforms">
 </p>
@@ -178,4 +178,4 @@ Apple platforms. CI runs the tests on Linux and macOS and builds for every Apple
 
 ## License
 
-[MIT](LICENSE)
+[GNU AGPL-3.0-only](LICENSE)
