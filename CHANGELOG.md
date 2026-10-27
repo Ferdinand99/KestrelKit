@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Ferdinand99/KestrelKit/compare/v0.1.0...v0.1.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* privacy and transport hardening from the October review ([#10](https://github.com/Ferdinand99/KestrelKit/issues/10)) ([2732d2b](https://github.com/Ferdinand99/KestrelKit/commit/2732d2b8684bb379325e32981ee5b4d462fe6e49))
+
 ## 0.1.0 (2026-10-23)
 
 
