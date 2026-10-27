@@ -29,12 +29,10 @@ struct DeliveryTests {
         #expect(harness.queuedLines == 0)
     }
 
-    @Test("A 202 that reports dropped signals (or says nothing readable) still ends the batch", arguments: [
+    @Test("A 202 that reports dropped signals still ends the batch", arguments: [
         #"{"accepted":1,"dropped":1}"#,
         #"{"accepted":0,"dropped":2}"#,
         #"{"accepted":2}"#,
-        "",
-        "not json",
     ])
     func acceptedWithDropped(body: String) async {
         let harness = Harness()
@@ -49,6 +47,141 @@ struct DeliveryTests {
         client.signal("Next")
         await client.flush()
         #expect(harness.server.requests.map(\.types) == [["Kept", "Broken"], ["Next"]])
+    }
+
+    @Test("Only Kestrel's own answer ends a batch; any other 2xx is retried", arguments: [
+        Reply.status(200, body: #"{"accepted":1}"#),
+        .status(200),
+        .status(204),
+        .status(202, body: ""),
+        .status(202, body: "not json"),
+        .status(202, body: "<html>Welcome to the hotel wifi</html>"),
+        .status(202, body: #"{"dropped":1}"#),
+        .status(202, body: #"{"accepted":"1"}"#),
+        .status(202, body: "[]"),
+    ])
+    func notKestrelsAnswer(reply: Reply) async {
+        let harness = Harness()
+        harness.server.script([reply])
+        let client = harness.client()
+        client.signal("A")
+        await client.flush()
+        #expect(harness.queuedLines == 1)
+
+        harness.clock.advance(by: 31)
+        await client.flush()
+        #expect(harness.server.requests.map(\.types) == [["A"], ["A"]])
+        #expect(harness.queuedLines == 0)
+    }
+
+    @Test("405, 407 and 410 keep the batch and retry with backoff", arguments: [405, 407, 410])
+    func notVerdicts(status: Int) async {
+        let harness = Harness()
+        harness.server.script([.status(status)])
+        let client = harness.client()
+        client.signal("A")
+        await client.flush()
+        #expect(harness.queuedLines == 1)
+
+        harness.clock.advance(by: 29)
+        await client.flush()
+        #expect(harness.server.requests.count == 1)
+
+        harness.clock.advance(by: 2)
+        await client.flush()
+        #expect(harness.server.requests.map(\.types) == [["A"], ["A"]])
+        #expect(harness.queuedLines == 0)
+    }
+
+    // Only on Apple platforms: swift-corelibs-foundation can't redirect from a mock URLProtocol.
+    #if canImport(Darwin)
+    @Test("A redirect is not followed and the batch is kept")
+    func redirect() async {
+        let target = MockServer()
+        let harness = Harness()
+        harness.server.respond { _ in .redirect(to: "https://\(target.host)/ingest/v1/signals") }
+        let client = harness.client()
+        client.signal("A")
+        let finished = Locked(false)
+        Task {
+            await client.flush()
+            finished.withLock { $0 = true }
+        }
+        #expect(await eventually { finished.withLock { $0 } })
+        #expect(target.requests.isEmpty)
+        #expect(harness.queuedLines == 1)
+    }
+    #endif
+
+    @Test("An answer bigger than 64 KB is not Kestrel's; the batch is kept")
+    func hugeAnswer() async {
+        let harness = Harness()
+        harness.server.script([.status(202, body: #"{"accepted":1}"# + String(repeating: " ", count: 100_000))])
+        let client = harness.client()
+        client.signal("A")
+        await client.flush()
+        #expect(harness.queuedLines == 1)
+
+        harness.clock.advance(by: 31)
+        await client.flush()
+        #expect(harness.server.requests.count == 2)
+        #expect(harness.queuedLines == 0)
+    }
+
+    @Test("Opting out cancels the upload in flight and nothing more is sent")
+    func optOutDuringUpload() async {
+        let harness = Harness()
+        harness.server.respond { _ in .hang }
+        let client = harness.client()
+        for n in 0..<150 { client.signal("S\(n)") }
+        let finished = Locked(false)
+        Task {
+            await client.flush()
+            finished.withLock { $0 = true }
+        }
+        #expect(await eventually { harness.server.requests.count == 1 })
+
+        harness.store.set(false, forKey: SettingsKey.isEnabled)
+        client.optOut()
+        // The hanging request is cancelled at once (its timeout is 30 s) and the flush ends
+        // without trying the second batch.
+        #expect(await eventually(timeout: 5) { finished.withLock { $0 } })
+        await client.drain()
+        #expect(harness.server.requests.count == 1)
+        #expect(harness.queuedLines == 0)
+
+        // Back on: sending works again.
+        harness.store.set(true, forKey: SettingsKey.isEnabled)
+        harness.server.respond { _ in .accepted }
+        client.signal("After")
+        await client.flush()
+        #expect(harness.server.requests.last?.types == ["After"])
+    }
+
+    @Test("A full command stream drops the oldest commands, lets their waiters go and keeps an opt-out")
+    func fullCommandStream() async {
+        let (stream, continuation) = AsyncStream.makeStream(of: Command.self, bufferingPolicy: .bufferingNewest(3))
+        let time = Date()
+        // Would wait forever if the barrier were dropped without being let go.
+        await withCheckedContinuation { done in
+            Client.enqueue(.barrier(done), on: continuation)
+            Client.enqueue(.optOut, on: continuation)
+            for n in 0..<3 {
+                Client.enqueue(.signal(type: "S\(n)", payload: [:], time: time), on: continuation)
+            }
+        }
+        continuation.finish()
+        var kept: [String] = []
+        for await command in stream {
+            switch command {
+            case let .signal(type, _, _): kept.append(type)
+            case .optOut: kept.append("optOut")
+            default: kept.append("other")
+            }
+        }
+        #expect(kept.count == 3)
+        #expect(kept.contains("optOut"))
+        #expect(kept.contains("S2"))
     }
 
     @Test("The dropped count is read from the 202 body when it is there")
@@ -77,7 +210,7 @@ struct DeliveryTests {
         let harness = Harness()
         let client = harness.client()
         var payload: [String: String] = [:]
-        for key in 0..<20 { payload["key\(key)"] = String(repeating: "abcdefghij", count: 20) }
+        for key in 0..<20 { payload["item\(key)"] = String(repeating: "abcdefghij", count: 20) }
         for _ in 0..<80 { client.signal("Big.signal", payload: payload) }
         await client.flush()
 
@@ -101,7 +234,7 @@ struct DeliveryTests {
         #expect(harness.queuedLines == 0)
     }
 
-    @Test("401, 403 and 404 stop sending until the next launch", arguments: [401, 403, 404])
+    @Test("401, 403 and 404 pause sending for an hour", arguments: [401, 403, 404])
     func unavailable(status: Int) async {
         let harness = Harness()
         harness.server.script([.status(status)])
@@ -109,18 +242,32 @@ struct DeliveryTests {
         client.signal("A")
         await client.flush()
         client.signal("B")
-        harness.clock.advance(by: 7200)
+        harness.clock.advance(by: 3599)
         await client.flush()
         #expect(harness.server.requests.count == 1)
         await client.drain()
         #expect(harness.queuedLines == 2)
-        client.shutdown()
 
-        // The next launch tries again and sends everything that was kept.
-        let relaunched = harness.client()
-        await relaunched.flush()
+        // An hour later it tries again, without a relaunch, and sends everything that was kept.
+        harness.clock.advance(by: 2)
+        await client.flush()
         #expect(harness.server.requests.count == 2)
         #expect(harness.server.requests.last?.types == ["A", "B"])
+        #expect(harness.queuedLines == 0)
+    }
+
+    @Test("A relaunch tries again at once after 401, 403 and 404", arguments: [401, 403, 404])
+    func unavailableThenRelaunch(status: Int) async {
+        let harness = Harness()
+        harness.server.script([.status(status)])
+        let client = harness.client()
+        client.signal("A")
+        await client.flush()
+        client.shutdown()
+
+        let relaunched = harness.client()
+        await relaunched.flush()
+        #expect(harness.server.requests.map(\.types) == [["A"], ["A"]])
     }
 
     @Test("413 splits the batch until the halves fit")
@@ -246,7 +393,14 @@ struct DeliveryTests {
 
     @Test("Response codes map to the protocol's actions")
     func classification() {
-        #expect(UploadOutcome.classify(status: 202, retryAfter: nil) == .accepted)
+        let answer = Data(#"{"accepted":3}"#.utf8)
+        #expect(UploadOutcome.classify(status: 202, retryAfter: nil, body: answer) == .accepted)
+        #expect(UploadOutcome.classify(status: 202, retryAfter: nil) == .failed)
+        #expect(UploadOutcome.classify(status: 200, retryAfter: nil, body: answer) == .failed)
+        #expect(UploadOutcome.classify(status: 301, retryAfter: nil) == .failed)
+        #expect(UploadOutcome.classify(status: 405, retryAfter: nil) == .failed)
+        #expect(UploadOutcome.classify(status: 407, retryAfter: nil) == .failed)
+        #expect(UploadOutcome.classify(status: 410, retryAfter: nil) == .failed)
         #expect(UploadOutcome.classify(status: 400, retryAfter: nil) == .rejected)
         #expect(UploadOutcome.classify(status: 422, retryAfter: nil) == .rejected)
         #expect(UploadOutcome.classify(status: 401, retryAfter: nil) == .unavailable)

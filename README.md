@@ -55,6 +55,10 @@ The key is the project's public key: the 32 hex characters at the start of the p
 (`https://<key>@kestrel.example.com/1`), on the project's settings page in Kestrel. It's the same key
 the Sentry SDK uses, so one project gets both errors and analytics.
 
+KestrelKit only talks to `https://` addresses. `http://` works for `localhost`, and in debug builds
+for any host (a Kestrel on your own network); in a release build any other `http://` address is
+refused and nothing is stored or sent.
+
 ### SwiftUI
 
 ```swift
@@ -117,12 +121,21 @@ Each signal has:
 **Never collected:** the IDFA or IDFV, the device name, the user's name or email, location, contacts,
 IP addresses (Kestrel doesn't store them), or anything to fingerprint a device.
 
-Payloads are filtered on the device, with the same rules Kestrel applies again on the server:
+Payloads are filtered on the device, with the same rules Kestrel applies again on the server (the
+shortened IPv6 forms and the dot and non-breaking-space card groupings below are only caught on the
+device for now). Control characters are removed first, and a value is cut to 2,000 characters before
+it is filtered, so a very long value is cheap:
 
-- values that look like an email address, a phone number, a card number, an IP address, a
-  `Bearer`/`Basic` credential or a `token=…`-style secret are replaced by `[Filtered]`;
+- values that look like an email address, a phone number, a card number (13 to 19 digits grouped by
+  spaces, dashes, dots or non-breaking spaces, and passing the Luhn check), an IP address (IPv4, and
+  IPv6 written out or shortened with `::`, such as `2001:db8::1` and `::1`), a `Bearer`/`Basic`
+  credential or a `token=…`-style secret are replaced by `[Filtered]`;
 - keys that name an IP address or a user agent (`ip`, `client_ip`, `x-forwarded-for`, `user_agent`
-  and the like) are dropped with their values.
+  and the like) are dropped with their values;
+- keys that look like they hold a secret are dropped with their values: any key containing `pass`
+  (`password`, `passwd`), `secret`, `token`, `auth`, `key`, `card`, `cookie` or `cvv`, and `ssn` as a
+  word of its own, ignoring case. This is blunt on purpose: `keyboard_layout` and `author` go too, so
+  give such keys other names (`layout`, `writer`).
 
 Payloads are limited to 20 keys of up to 40 characters, with values of up to 200 characters. Keep
 personal data out of them; the filtering is a safety net, not a licence.
@@ -157,8 +170,15 @@ choice across launches. Nothing is sent before `Kestrel.configure` is called eit
   survive restarts and offline periods. Each batch holds up to 100 signals or 256 KB, and is
   gzipped when that makes it smaller.
 - When the server is busy or unreachable, KestrelKit backs off: from 30 seconds up to an hour, or as
-  long as the server's `Retry-After` says. A wrong or disabled key stops sending until the next
-  launch.
+  long as the server's `Retry-After` says. A wrong or disabled key (or a server without app
+  analytics) pauses sending for an hour. Only Keen Kestrel's own answer (`202` with `{"accepted": n}`)
+  counts as delivered; any other answer, a captive portal's `200` for example, keeps the batch and
+  retries with backoff.
+- Redirects are never followed, answers bigger than 64 KB are ignored, and a request gets 60 seconds
+  at most.
+- Turning `Kestrel.isEnabled` off cancels an upload in progress and sends nothing more.
+- Up to 1,000 calls can wait for the queue at once while it is busy; when more arrive, the oldest are
+  dropped.
 - On iOS, tvOS and visionOS, KestrelKit asks for a little background time to finish the upload when
   the app moves to the background. On the Mac, "background" means another app is active.
 - TestFlight builds are recognised by their sandbox App Store receipt. This doesn't work for Mac

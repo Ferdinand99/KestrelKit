@@ -89,6 +89,109 @@ struct LimitsTests {
         #expect(payload == ["email": "[Filtered]", "plan": "pro"])
     }
 
+    @Test("Control characters can't split an address past the scrubbing", arguments: [
+        ("john@exa\tmple.com", "[Filtered]"),
+        ("john@example.com\n", "[Filtered]"),
+        ("jo\u{0}hn@exam\u{7}ple.com", "[Filtered]"),
+        ("4111 1111 11\n11 1111", "[Filtered]"),
+        ("41\t11 1111 1111 1111", "[Filtered]"),
+        ("ip 203.0.\r113.7", "ip [Filtered]"),
+        ("Bearer\u{0} abc.def", "Bearer [Filtered]"),
+        ("tok\u{1}en=abc", "token=[Filtered]"),
+    ])
+    func controlCharacters(input: String, expected: String) {
+        #expect(Limits.payload(["note": input]) == ["note": expected])
+    }
+
+    @Test("Card numbers grouped with dots or non-breaking spaces are scrubbed", arguments: [
+        "4111.1111.1111.1111",
+        "4111\u{00A0}1111\u{00A0}1111\u{00A0}1111",
+        "4111\u{202F}1111\u{202F}1111\u{202F}1111",
+        "4111-1111.1111 1111",
+    ])
+    func cardSeparators(input: String) {
+        #expect(Scrubber.scrub(input) == "[Filtered]")
+        #expect(Scrubber.scrub("paid with \(input) today") == "paid with [Filtered] today")
+    }
+
+    @Test("Shortened IPv6 addresses are replaced", arguments: [
+        ("2001:db8::1", "[Filtered]"),
+        ("::1", "[Filtered]"),
+        ("fe80::1", "[Filtered]"),
+        ("FE80::202:B3FF:FE1E:8329", "[Filtered]"),
+        ("2001:db8:0:0:1::", "[Filtered]"),
+        ("from 2001:db8::8a2e:370:7334, then", "from [Filtered], then"),
+        ("/ip/::1/x", "/ip/[Filtered]/x"),
+        ("[2001:db8::1]:8080", "[[Filtered]]:8080"),
+    ])
+    func shortenedIPv6(input: String, expected: String) {
+        #expect(Scrubber.scrub(input) == expected)
+    }
+
+    @Test("Things that only look a bit like a shortened IPv6 address are kept", arguments: [
+        "::",
+        ":::1",
+        "1::2::3",
+        "std::fmt::Display",
+        "Namespace::Item",
+        "12:30:45",
+        "a:b",
+        "db8::12345",
+    ])
+    func notShortenedIPv6(input: String) {
+        #expect(Scrubber.scrub(input) == input)
+    }
+
+    @Test("Keys that look like they hold a secret are dropped with their values", arguments: [
+        "password", "Password", "passwd", "user_pass", "secret", "client_secret", "token", "apiToken",
+        "auth", "Authorization", "key", "api_key", "apiKey", "card", "cardNumber", "cvv", "CVV2",
+        "ssn", "SSN", "user_ssn", "ssn-last4", "cookie", "session_cookie",
+    ])
+    func sensitiveKeys(key: String) {
+        #expect(Scrubber.isSensitiveKey(key), "\(key)")
+        #expect(Limits.payload([key: "hunter2", "plan": "pro"]) == ["plan": "pro"])
+    }
+
+    @Test("The default payload's secret keys are dropped too")
+    func sensitiveDefaultKeys() {
+        #expect(Limits.payload(["plan": "pro"], defaults: ["api_token": "abc", "channel": "beta"]) == ["plan": "pro", "channel": "beta"])
+    }
+
+    @Test("Ordinary keys are kept", arguments: ["plan", "className", "classname", "screen", "count", "name", "email", "item00", "\u{212A}ey"])
+    func ordinaryKeys(key: String) {
+        #expect(!Scrubber.isSensitiveKey(key), "\(key)")
+        #expect(Limits.payload([key: "x"]) == [key: "x"])
+    }
+
+    @Test("A huge value is cut before it is scrubbed and scrubs fast", arguments: [
+        String(repeating: "a", count: 20_000),
+        String(repeating: "a.", count: 10_000),
+        String(repeating: "a@", count: 10_000),
+        String(repeating: "1 ", count: 10_000),
+        String(repeating: "token", count: 4_000),
+        String(repeating: "pass-", count: 4_000),
+        String(repeating: "1:", count: 10_000),
+        "x@" + String(repeating: "a.", count: 10_000),
+        String(repeating: "a", count: 20_000) + "@example.com",
+    ])
+    func hugeValues(value: String) {
+        let clock = ContinuousClock()
+        let elapsed = clock.measure {
+            let payload = Limits.payload(["note": value])
+            #expect((payload["note"]?.unicodeScalars.count ?? 0) <= Limits.maxValueLength)
+        }
+        #expect(elapsed < .seconds(2), "took \(elapsed)")
+    }
+
+    @Test("A value is cut to 2,000 characters before scrubbing, then to 200")
+    func rawCap() {
+        let payload = Limits.payload(["note": String(repeating: "x", count: 2_100) + "jane@example.com"])
+        #expect(payload["note"] == String(repeating: "x", count: 200))
+        // An address in the first 200 characters is still found when the value is long.
+        let early = Limits.payload(["note": "jane@example.com " + String(repeating: "x", count: 5_000)])
+        #expect(early["note"] == "[Filtered] " + String(repeating: "x", count: 189))
+    }
+
     @Test("Luhn")
     func luhn() {
         #expect(Scrubber.luhn("4111111111111111"))
@@ -111,13 +214,11 @@ struct LimitsTests {
         #expect(Scrubber.scrub(input) == expected)
     }
 
-    @Test("Shortened IPv6 and things that only look a bit like addresses are kept", arguments: [
+    @Test("Things that only look a bit like addresses are kept", arguments: [
         "1.4.0",
         "/v/1.2.3",
         "12:30",
         "12:30:45",
-        "::1",
-        "fe80::1",
     ])
     func notIPAddresses(input: String) {
         #expect(Scrubber.scrub(input) == input)
@@ -170,6 +271,8 @@ struct LimitsTests {
         let payload = Limits.payload([
             "email": "jane.doe@example.com",
             "phone": "+47 912 34 567",
+            "payment": "4111 1111 1111 1111",
+            "header": "Authorization: Bearer abc.def-123",
             "card": "4111 1111 1111 1111",
             "auth": "Authorization: Bearer abc.def-123",
             "note": "order 123456789",
@@ -183,8 +286,9 @@ struct LimitsTests {
         ])
         #expect(payload["email"] == "[Filtered]")
         #expect(payload["phone"] == "[Filtered]")
-        #expect(payload["card"] == "[Filtered]")
-        #expect(payload["auth"] == "Authorization: Bearer [Filtered]")
+        #expect(payload["payment"] == "[Filtered]")
+        #expect(payload["header"] == "Authorization: Bearer [Filtered]")
+        #expect(payload["card"] == nil && payload["auth"] == nil)
         #expect(payload["note"] == "order 123456789")
         #expect(payload["pages"] == "12" && payload["pdf"] == "true")
         #expect(payload["ip"] == nil && payload["user_agent"] == nil)
@@ -197,10 +301,10 @@ struct LimitsTests {
     @Test("Dropped keys don't use up the 20, and are cleaned before the check")
     func droppedKeysInPayloads() {
         var own: [String: String] = [" IP\u{0007} ": "203.0.113.7", "User-Agent": "Mozilla/5.0"]
-        for i in 0..<20 { own["key\(i < 10 ? "0" : "")\(i)"] = "\(i)" }
+        for i in 0..<20 { own["item\(i < 10 ? "0" : "")\(i)"] = "\(i)" }
         let payload = Limits.payload(own, defaults: ["x-forwarded-for": "10.0.0.1"])
         #expect(payload.count == 20)
-        #expect(payload.keys.allSatisfy { $0.hasPrefix("key") })
+        #expect(payload.keys.allSatisfy { $0.hasPrefix("item") })
     }
 
     @Test("Every type KestrelKit sends is one the server accepts as it is", arguments: [
