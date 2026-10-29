@@ -28,7 +28,7 @@ third-party dependencies.
 |---|---|---|---|
 | KS-01 | Low | Opt-out not immediate for an in-flight flush | Fixed in #10 |
 | KS-02 | Low | Scrubbing ran before control characters were removed, so they could split emails and card numbers past the patterns | Fixed in #10 (SDK) and in Keen Kestrel #45 (server) |
-| KS-03 | Low | Scrubber missed compressed IPv6 and cards separated by dots or non-breaking spaces; payload keys such as `password` or `token` were not dropped | Fixed in #10 (SDK). Server side: sensitive keys dropped in Keen Kestrel #45; the IPv6 and card patterns are not added on the server. Open |
+| KS-03 | Low | Scrubber missed compressed IPv6 and cards separated by dots or non-breaking spaces; payload keys such as `password` or `token` were not dropped | Fixed in #10 (SDK). Server side: sensitive keys dropped in Keen Kestrel #45; the IPv6 and card patterns are added on the server in Keen Kestrel #53 |
 | KS-04 | Low | Quadratic regex time on long values | Fixed in #10 |
 | KS-05 | Low | No transport policy (http allowed, redirects followed with the key header, unbounded response, 7-day resource timeout) | Fixed in #10 |
 | KS-06 | Low | Unbounded command stream; a full queue rewrote up to 5 MB per signal | Fixed in #10 |
@@ -53,9 +53,9 @@ third-party dependencies.
 
 - **KS-08, sharp edges, open.** Calling `description()` on arbitrary objects, debug builds sending to production, and the install id in `UserDefaults` surviving a device restore. These are
   informational and were not changed.
-- **Server-side IPv6 and card patterns (KS-03), open.** Shortened IPv6 addresses and dotted or non-breaking-space
-  card groupings are scrubbed on the device only. A modified or older client can still send them, and the Keen
-  Kestrel server does not scrub them.
+- **Server-side IPv6 and card patterns (KS-03), done.** Keen Kestrel #53 scrubs shortened IPv6 addresses and
+  dotted or non-breaking-space card groupings on the server too, so a modified or older client can no longer send
+  them past it.
 - **Scrubbing is best effort.** It is pattern-based and cannot recognise every kind of personal data. Do not put
   personal data in signal payloads.
 
