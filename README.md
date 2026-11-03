@@ -200,6 +200,10 @@ Apple platforms. CI runs the tests on Linux and macOS and builds for every Apple
 
 The October 2026 security review of the SDK (what was found, fixed and left open) is in [`docs/security-review-2026-10.md`](docs/security-review-2026-10.md).
 
+## Support
+
+Hedgerow is built in spare time and is free to use. If you find it useful, you can support it through [GitHub Sponsors](https://github.com/sponsors/Ferdinand99) or [Ko-fi](https://ko-fi.com/ferdinand99). Thank you.
+
 ## License
 
 [MIT](LICENSE). The SDK goes into your app, so it uses a permissive license: it can ship in any
